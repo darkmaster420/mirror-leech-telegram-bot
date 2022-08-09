@@ -131,7 +131,7 @@ def get_readable_message():
                 msg += f"\n<b>Speed:</b> {download.speed()} | <b>ETA:</b> {download.eta()}"
                 if hasattr(download, 'seeders_num'):
                 msg += f"\n<b>Time Elapsed:</b> <code>{get_readable_time(time() - download.message.date.timestamp())}</code>"
-                msg += f"\n<b>User: </b> 
+                msg += f"\n<b>User: </b> <code>{download.message.from_user.first_name}</code>️"
                     try:
                         msg += f"\n<b>Seeders:</b> {download.seeders_num()} | <b>Leechers:</b> {download.leechers_num()}"
                     except:
