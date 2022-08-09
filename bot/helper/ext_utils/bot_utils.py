@@ -127,9 +127,11 @@ def get_readable_message():
             msg += f"\n<b>Status:</b> <i>{download.status()}</i>"
             if download.status() not in [MirrorStatus.STATUS_SPLITTING, MirrorStatus.STATUS_SEEDING]:
                 msg += f"\n{get_progress_bar_string(download)} {download.progress()}"
-                msg += f"\n<b>Processed:</b> {get_readable_file_size(download.processed_bytes())} of {download.size()}"
+                msg += f"\n<b>Downloaded:</b> {get_readable_file_size(download.processed_bytes())} of {download.size()}"
                 msg += f"\n<b>Speed:</b> {download.speed()} | <b>ETA:</b> {download.eta()}"
                 if hasattr(download, 'seeders_num'):
+                msg += f"\n<b>Time Elapsed:</b> <code>{get_readable_time(time() - download.message.date.timestamp())}</code>"
+                msg += f"\n<b>User: </b> 
                     try:
                         msg += f"\n<b>Seeders:</b> {download.seeders_num()} | <b>Leechers:</b> {download.leechers_num()}"
                     except:
@@ -142,7 +144,7 @@ def get_readable_message():
                 msg += f" | <b>Time: </b>{download.seeding_time()}"
             else:
                 msg += f"\n<b>Size: </b>{download.size()}"
-            msg += f"\n<code>/{BotCommands.CancelMirror} {download.gid()}</code>"
+            msg += f"\n<b>Cancel: </b> <code>/{BotCommands.CancelMirror} {download.gid()}</code>"
             msg += "\n\n"
             if STATUS_LIMIT is not None and index == STATUS_LIMIT:
                 break
