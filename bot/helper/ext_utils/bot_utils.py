@@ -130,7 +130,7 @@ def get_readable_message():
                 msg += f"\n<b>Downloaded:</b> {get_readable_file_size(download.processed_bytes())} of {download.size()}"
                 msg += f"\n<b>Speed:</b> {download.speed()} | <b>ETA:</b> {download.eta()}"
                 msg += f"\n<b>Time Elapsed: </b>{get_readable_time(time() - download.message.date.timestamp())}"
-                msg += f"\n\n<b>User:</b> <code>{download.message.from_user.first_name}</code> <b>ID: </b> <code>{download.message.from_user.id}</code>"
+                msg += f"\n<b>User:</b> <code>{download.message.from_user.first_name}</code> <b>ID: </b> <code>{download.message.from_user.id}</code>"
                 if hasattr(download, 'seeders_num'):
                     try:
                         msg += f"\n<b>Seeders:</b> {download.seeders_num()} | <b>Leechers:</b> {download.leechers_num()}"
