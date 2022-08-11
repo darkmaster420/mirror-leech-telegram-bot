@@ -1,10 +1,11 @@
 from time import sleep, time
+from os import remove
 
 from bot import aria2, download_dict_lock, download_dict, STOP_DUPLICATE, BASE_URL, LOGGER
 from bot.helper.mirror_utils.upload_utils.gdriveTools import GoogleDriveHelper
 from bot.helper.ext_utils.bot_utils import is_magnet, getDownloadByGid, new_thread, bt_selection_buttons
 from bot.helper.mirror_utils.status_utils.aria_download_status import AriaDownloadStatus
-from bot.helper.telegram_helper.message_utils import sendMarkup, sendStatusMessage, sendMessage, deleteMessage, update_all_messages
+from bot.helper.telegram_helper.message_utils import sendMarkup, sendStatusMessage, sendMessage, deleteMessage, update_all_messages, sendFile
 from bot.helper.ext_utils.fs_utils import get_base_name, clean_unwanted
 
 
@@ -14,51 +15,47 @@ def __onDownloadStarted(api, gid):
     if download.is_metadata:
         LOGGER.info(f'onDownloadStarted: {gid} METADATA')
         sleep(1)
-        dl = getDownloadByGid(gid)
-        listener = dl.listener()
-        if listener.select:
-            metamsg = "Downloading Metadata, wait then you can select files. Use torrent file to avoid this wait."
-            meta = sendMessage(metamsg, listener.bot, listener.message)
-            while True:
-                try:
-                    download = api.get_download(gid)
-                except:
-                    deleteMessage(listener.bot, meta)
-                    break
-                if download.followed_by_ids:
-                    deleteMessage(listener.bot, meta)
-                    break
+        if dl := getDownloadByGid(gid):
+            listener = dl.listener()
+            if listener.select:
+                metamsg = "Downloading Metadata, wait then you can select files. Use torrent file to avoid this wait."
+                meta = sendMessage(metamsg, listener.bot, listener.message)
+                while True:
+                    if download.is_removed or download.followed_by_ids:
+                        deleteMessage(listener.bot, meta)
+                        break
+                    download = download.live
         return
     else:
         LOGGER.info(f'onDownloadStarted: {download.name} - Gid: {gid}')
     try:
         if STOP_DUPLICATE:
             sleep(1)
-            dl = getDownloadByGid(gid)
-            if not dl:
-                return
-            listener = dl.listener()
-            if listener.isLeech or listener.select:
-                return
-            download = api.get_download(gid)
-            if not download.is_torrent:
-                sleep(3)
-                download = download.live
-            LOGGER.info('Checking File/Folder if already in Drive...')
-            sname = download.name
-            if listener.isZip:
-                sname = sname + ".zip"
-            elif listener.extract:
-                try:
-                    sname = get_base_name(sname)
-                except:
-                    sname = None
-            if sname is not None:
-                smsg, button = GoogleDriveHelper().drive_list(sname, True)
-                if smsg:
-                    listener.onDownloadError('File/Folder already available in Drive.\n\n')
-                    api.remove([download], force=True, files=True)
-                    return sendMarkup("Here are the search results:", listener.bot, listener.message, button)
+            if dl := getDownloadByGid(gid):
+                listener = dl.listener()
+                if listener.isLeech or listener.select:
+                    return
+                download = api.get_download(gid)
+                if not download.is_torrent:
+                    sleep(3)
+                    download = download.live
+                LOGGER.info('Checking File/Folder if already in Drive...')
+                sname = download.name
+                if listener.isZip:
+                    sname = f"{sname}.zip"
+                elif listener.extract:
+                    try:
+                        sname = get_base_name(sname)
+                    except:
+                        sname = None
+                if sname is not None:
+                    cap, f_name = GoogleDriveHelper().drive_list(sname, True)
+                    if cap:
+                        listener.onDownloadError('File/Folder already available in Drive.')
+                        api.remove([download], force=True, files=True)
+                        cap = f"Here are the search results:\n\n{cap}"
+                        sendFile(listener.bot, listener.message, f_name, cap)
+                        return
     except Exception as e:
         LOGGER.error(f"{e} onDownloadStart: {gid} check duplicate didn't pass")
 
@@ -71,12 +68,13 @@ def __onDownloadComplete(api, gid):
     if download.followed_by_ids:
         new_gid = download.followed_by_ids[0]
         LOGGER.info(f'Gid changed from {gid} to {new_gid}')
-        dl = getDownloadByGid(new_gid)
-        listener = dl.listener()
-        if BASE_URL is not None and listener.select:
-            SBUTTONS = bt_selection_buttons(new_gid)
-            msg = "Your download paused. Choose files then press Done Selecting button to start downloading."
-            sendMarkup(msg, listener.bot, listener.message, SBUTTONS)
+        if dl := getDownloadByGid(new_gid):
+            listener = dl.listener()
+            if BASE_URL is not None and listener.select:
+                api.client.force_pause(new_gid)
+                SBUTTONS = bt_selection_buttons(new_gid)
+                msg = "Your download paused. Choose files then press Done Selecting button to start downloading."
+                sendMarkup(msg, listener.bot, listener.message, SBUTTONS)
     elif download.is_torrent:
         if dl := getDownloadByGid(gid):
             if hasattr(dl, 'listener'):
@@ -100,6 +98,13 @@ def __onBtDownloadComplete(api, gid):
     if dl := getDownloadByGid(gid):
         listener = dl.listener()
         if listener.select:
+            res = download.files
+            for file_o in res:
+                if not file_o.selected:
+                    try:
+                        remove(file_o.path)
+                    except:
+                        pass
             clean_unwanted(download.dir)
         if listener.seed:
             try:

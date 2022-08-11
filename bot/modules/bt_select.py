@@ -1,4 +1,5 @@
 from telegram.ext import CommandHandler, CallbackQueryHandler
+from os import remove
 
 from bot import aria2, BASE_URL, download_dict, dispatcher, download_dict_lock, SUDO_USERS, OWNER_ID
 from bot.helper.telegram_helper.bot_commands import BotCommands
@@ -67,7 +68,9 @@ def get_confirm(update, context):
     if not dl:
         query.answer(text="This task has been cancelled!", show_alert=True)
         query.message.delete()
-    elif user_id != dl.listener().message.from_user.id:
+        return
+    listener = dl.listener()
+    if user_id != listener.message.from_user.id:
         query.answer(text="This task is not for you!", show_alert=True)
     elif data[1] == "pin":
         query.answer(text=data[3], show_alert=True)
@@ -77,8 +80,15 @@ def get_confirm(update, context):
         if len(id_) > 20:
             dl.client().torrents_resume(torrent_hashes=id_)
         else:
+            res = aria2.client.get_files(id_)
+            for f in res:
+                if f['selected'] == 'false':
+                    try:
+                        remove(f['path'])
+                    except:
+                        pass
             aria2.client.unpause(id_)
-        sendStatusMessage(dl.listener().message, dl.listener().bot)
+        sendStatusMessage(listener.message, listener.bot)
         query.message.delete()
 
 
