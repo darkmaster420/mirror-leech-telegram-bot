@@ -1,7 +1,6 @@
 from base64 import b64encode
 from re import match as re_match, split as re_split
 from time import sleep
-from os import path as ospath
 from threading import Thread
 from telegram.ext import CommandHandler
 
@@ -20,7 +19,7 @@ from bot.helper.telegram_helper.message_utils import sendMessage
 from .listener import MirrorLeechListener
 
 
-def _mirror_leech(bot, message, isZip=False, extract=False, isQbit=False, isLeech=False, multi=0):
+def _mirror_leech(bot, message, isZip=False, extract=False, isQbit=False, isLeech=False):
     mesg = message.text.split('\n')
     message_args = mesg[0].split(maxsplit=1)
     name_args = mesg[0].split('|', maxsplit=1)
@@ -29,6 +28,7 @@ def _mirror_leech(bot, message, isZip=False, extract=False, isQbit=False, isLeec
     seed_time = None
     select = False
     seed = False
+    multi=1
 
     if len(message_args) > 1:
         args = mesg[0].split(maxsplit=3)
@@ -51,8 +51,7 @@ def _mirror_leech(bot, message, isZip=False, extract=False, isQbit=False, isLeec
         if len(message_args) > index:
             link = message_args[index].strip()
             if link.isdigit():
-                if multi == 0:
-                    multi = int(link)
+                multi = int(link)
                 link = ''
             elif link.startswith(("|", "pswd:")):
                 link = ''
@@ -84,7 +83,7 @@ def _mirror_leech(bot, message, isZip=False, extract=False, isQbit=False, isLeec
 
     reply_to = message.reply_to_message
     if reply_to is not None:
-        file_ = next((i for i in [reply_to.document, reply_to.video, reply_to.audio, reply_to.photo] if i), None)
+        file_ = reply_to.document or reply_to.video or reply_to.audio or reply_to.photo or None
         if not reply_to.from_user.is_bot:
             if reply_to.from_user.username:
                 tag = f"@{reply_to.from_user.username}"
@@ -103,16 +102,15 @@ def _mirror_leech(bot, message, isZip=False, extract=False, isQbit=False, isLeec
                 if multi > 1:
                     sleep(4)
                     nextmsg = type('nextmsg', (object, ), {'chat_id': message.chat_id, 'message_id': message.reply_to_message.message_id + 1})
-                    nextmsg = sendMessage(message.text, bot, nextmsg)
+                    nextmsg = sendMessage(message.text.replace(str(multi), str(multi - 1), 1), bot, nextmsg)
                     nextmsg.from_user.id = message.from_user.id
-                    multi -= 1
                     sleep(4)
-                    Thread(target=_mirror_leech, args=(bot, nextmsg, isZip, extract, isQbit, isLeech, multi)).start()
+                    Thread(target=_mirror_leech, args=(bot, nextmsg, isZip, extract, isQbit, isLeech)).start()
                 return
             else:
                 link = file_.get_file().file_path
 
-    if not is_url(link) and not is_magnet(link) and not ospath.exists(link):
+    if not is_url(link) and not is_magnet(link):
         help_msg = "<b>Send link along with command line:</b>"
         if isQbit:
             help_msg += "\n<code>/qbcmd</code> {link} pswd: xx [zip/unzip]"
@@ -191,11 +189,10 @@ def _mirror_leech(bot, message, isZip=False, extract=False, isQbit=False, isLeec
     if multi > 1:
         sleep(4)
         nextmsg = type('nextmsg', (object, ), {'chat_id': message.chat_id, 'message_id': message.reply_to_message.message_id + 1})
-        nextmsg = sendMessage(message.text, bot, nextmsg)
+        nextmsg = sendMessage(message.text.replace(str(multi), str(multi - 1), 1), bot, nextmsg)
         nextmsg.from_user.id = message.from_user.id
-        multi -= 1
         sleep(4)
-        Thread(target=_mirror_leech, args=(bot, nextmsg, isZip, extract, isQbit, isLeech, multi)).start()
+        Thread(target=_mirror_leech, args=(bot, nextmsg, isZip, extract, isQbit, isLeech)).start()
 
 
 def mirror(update, context):
