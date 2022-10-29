@@ -160,7 +160,7 @@ class YoutubeDLHelper:
             else:
                 self.name = name
         else:
-            ext = realName.split('.')[-1]
+            ext = realName.rsplit('.', 1)[-1]
             if name == "":
                 newname = realName.split(f" [{result['id'].replace('*', '_')}]")
                 self.name = newname[0] + '.' + ext if len(newname) > 1 else newname[0]

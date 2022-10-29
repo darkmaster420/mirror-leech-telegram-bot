@@ -1,7 +1,7 @@
 from telegram.ext import CommandHandler, CallbackQueryHandler
 from os import remove, path as ospath
 
-from bot import aria2, BASE_URL, download_dict, dispatcher, download_dict_lock, OWNER_ID, user_data, LOGGER
+from bot import aria2, download_dict, dispatcher, download_dict_lock, OWNER_ID, user_data, LOGGER
 from bot.helper.telegram_helper.bot_commands import BotCommands
 from bot.helper.telegram_helper.filters import CustomFilters
 from bot.helper.telegram_helper.message_utils import sendMessage, sendMarkup, sendStatusMessage
@@ -115,7 +115,6 @@ def get_confirm(update, context):
                 LOGGER.error(f"{e} Error in resume, this mostly happens after abuse aria2. Try to use select cmd again!")
         sendStatusMessage(listener.message, listener.bot)
         query.message.delete()
-        query.message.reply_to_message.delete()
 
 
 select_handler = CommandHandler(BotCommands.BtSelectCommand, select,
