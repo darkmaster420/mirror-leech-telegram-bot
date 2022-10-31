@@ -37,6 +37,7 @@ INDEX_URLS = []
 GLOBAL_EXTENSION_FILTER = ['.aria2']
 user_data = {}
 aria2_options = {}
+qbit_options = {}
 
 try:
     if bool(environ.get('_____REMOVE_THIS_LINE_____')):
@@ -75,15 +76,19 @@ if DB_URI:
         del config_dict['_id']
         for key, value in config_dict.items():
             environ[key] = str(value)
-    if pf_dict := db.settings.PFile.find_one({'_id': bot_id}):
+    if pf_dict := db.settings.files.find_one({'_id': bot_id}):
         del pf_dict['_id']
         for key, value in pf_dict.items():
             if value:
-                with open(key, 'wb+') as f:
+                file_ = key.replace('__', '.')
+                with open(file_, 'wb+') as f:
                     f.write(value)
     if a2c_options := db.settings.aria2c.find_one({'_id': bot_id}):
         del a2c_options['_id']
         aria2_options = a2c_options
+    if qbit_opt := db.settings.qbittorrent.find_one({'_id': bot_id}):
+        del qbit_opt['_id']
+        qbit_options = qbit_opt
     conn.close()
 else:
     config_dict = {}
@@ -379,6 +384,15 @@ aria2c_global = ['bt-max-open-files', 'download-result', 'keep-unfinished-downlo
 
 if not aria2_options:
     aria2_options = aria2.client.get_global_option()
+    del aria2_options['dir']
+    del aria2_options['max-download-limit']
+    del aria2_options['lowest-speed-limit']
+
+qb_client = get_client()
+if not qbit_options:
+    qbit_options = dict(qb_client.app_preferences())
+else:
+    qb_client.app_set_preferences(qbit_options)
 
 updater = tgUpdater(token=BOT_TOKEN, request_kwargs={'read_timeout': 20, 'connect_timeout': 15})
 bot = updater.bot
