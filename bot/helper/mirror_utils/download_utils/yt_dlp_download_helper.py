@@ -130,7 +130,7 @@ class YoutubeDLHelper:
         self.__listener.onDownloadError(error)
 
     def extractMetaData(self, link, name, args, get_info=False):
-        if args is not None:
+        if args:
             self.__set_args(args)
         if get_info:
             self.opts['playlist_items'] = '0'
@@ -206,7 +206,7 @@ class YoutubeDLHelper:
             return
         if self.is_playlist:
             self.opts['outtmpl'] = f"{path}/{self.name}/%(title,fulltitle,alt_title)s%(season_number& |)s%(season_number&S|)s%(season_number|)02d%(episode_number&E|)s%(episode_number|)02d%(height& |)s%(height|)s%(height&p|)s%(fps|)s%(fps&fps|)s%(tbr& |)s%(tbr|)d.%(ext)s"
-        elif args is None:
+        elif not args:
             self.opts['outtmpl'] = f"{path}/{self.name}"
         else:
             folder_name = self.name.rsplit('.', 1)[0]
@@ -225,6 +225,8 @@ class YoutubeDLHelper:
         for arg in args:
             xy = arg.split(':', 1)
             karg = xy[0].strip()
+            if karg == 'format':
+                continue
             varg = xy[1].strip()
             if varg.startswith('^'):
                 varg = int(varg.split('^')[1])
