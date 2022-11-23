@@ -363,9 +363,11 @@ srun("./aria.sh", shell=True)
 if ospath.exists('accounts.zip'):
     if ospath.exists('accounts'):
         srun(["rm", "-rf", "accounts"])
-    srun(["unzip", "-q", "-o", "accounts.zip"])
+    srun(["unzip", "-q", "-o", "accounts.zip", "-x", "accounts/emails.txt"])
     srun(["chmod", "-R", "777", "accounts"])
     osremove('accounts.zip')
+if not ospath.exists('accounts'):
+    config_dict['USE_SERVICE_ACCOUNTS'] = False
 sleep(0.5)
 
 aria2 = ariaAPI(ariaClient(host="http://localhost", port=6800, secret=""))
@@ -401,10 +403,14 @@ if not aria2_options:
 qb_client = get_client()
 if not qbit_options:
     qbit_options = dict(qb_client.app_preferences())
+    del qbit_options['listen_port']
+    for k in list(qbit_options.keys()):
+        if k.startswith('rss'):
+            del qbit_options[k]
 else:
     qb_opt = {**qbit_options}
     for k, v in list(qb_opt.items()):
-        if v in ["", "*"] or k.startswith('rss'):
+        if v in ["", "*"]:
             del qb_opt[k]
     qb_client.app_set_preferences(qb_opt)
 
