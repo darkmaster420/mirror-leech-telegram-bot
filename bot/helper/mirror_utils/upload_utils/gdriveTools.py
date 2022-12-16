@@ -1,6 +1,6 @@
 from logging import getLogger, ERROR
 from time import time
-from pickle import load as pload, dump as pdump
+from pickle import load as pload
 from json import loads as jsnloads
 from os import makedirs, path as ospath, listdir, remove as osremove
 from requests.utils import quote as rquote
@@ -12,7 +12,6 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
-from google.auth.transport.requests import Request
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type, RetryError
 
 from bot.helper.telegram_helper.button_build import ButtonMaker
@@ -87,13 +86,9 @@ class GoogleDriveHelper:
                 f'accounts/{self.__service_account_index}.json',
                 scopes=self.__OAUTH_SCOPE)
         elif ospath.exists(self.__G_DRIVE_TOKEN_FILE):
+            LOGGER.info("Authorize with token.pickle")
             with open(self.__G_DRIVE_TOKEN_FILE, 'rb') as f:
                 credentials = pload(f)
-            if credentials and not credentials.valid and credentials.expired and credentials.refresh_token:
-                LOGGER.warning('Your token is expired! Refreshing Token...')
-                credentials.refresh(Request())
-                with open(self.__G_DRIVE_TOKEN_FILE, 'wb') as token:
-                    pdump(credentials, token)
         else:
             LOGGER.error('token.pickle not found!')
         return build('drive', 'v3', credentials=credentials, cache_discovery=False)
@@ -106,11 +101,6 @@ class GoogleDriveHelper:
                 LOGGER.info("Authorize with token.pickle")
                 with open(self.__G_DRIVE_TOKEN_FILE, 'rb') as f:
                     credentials = pload(f)
-                if credentials and not credentials.valid and credentials.expired and credentials.refresh_token:
-                    LOGGER.warning('Your token is expired! Refreshing Token...')
-                    credentials.refresh(Request())
-                    with open(self.__G_DRIVE_TOKEN_FILE, 'wb') as token:
-                        pdump(credentials, token)
                 return build('drive', 'v3', credentials=credentials, cache_discovery=False)
         return None
 
@@ -262,6 +252,8 @@ class GoogleDriveHelper:
                 self.__upload_file(current_file_name, file_name, mime_type, dest_id)
                 self.__total_files += 1
                 new_id = dest_id
+            else:
+                new_id = 'filter'
             if self.__is_cancelled:
                 break
         return new_id
@@ -448,13 +440,12 @@ class GoogleDriveHelper:
                 if reason in ['userRateLimitExceeded', 'dailyLimitExceeded']:
                     if config_dict['USE_SERVICE_ACCOUNTS']:
                         if self.__sa_count == SERVICE_ACCOUNTS_NUMBER:
-                            self.__is_cancelled = True
+                            LOGGER.info(f"Reached maximum number of service accounts switching, which is {self.__sa_count}")
                             raise err
                         else:
                             self.__switchServiceAccount()
                             return self.__copyFile(file_id, dest_id)
                     else:
-                        self.__is_cancelled = True
                         LOGGER.error(f"Got: {reason}")
                         raise err
                 else:
@@ -785,6 +776,8 @@ class GoogleDriveHelper:
             filename = f"{filename[:245]}{ext}"
             if self.name.endswith(ext):
                 self.name = filename
+        if self.__is_cancelled:
+            return
         fh = FileIO(f"{path}/{filename}", 'wb')
         downloader = MediaIoBaseDownload(fh, request, chunksize=50 * 1024 * 1024)
         done = False
@@ -804,7 +797,7 @@ class GoogleDriveHelper:
                         raise err
                     if config_dict['USE_SERVICE_ACCOUNTS']:
                         if self.__sa_count == SERVICE_ACCOUNTS_NUMBER:
-                            self.__is_cancelled = True
+                            LOGGER.info(f"Reached maximum number of service accounts switching, which is {self.__sa_count}")
                             raise err
                         else:
                             self.__switchServiceAccount()

@@ -1,7 +1,7 @@
 from logging import getLogger, FileHandler, StreamHandler, INFO, basicConfig, error as log_error, info as log_info, warning as log_warning
 from socket import setdefaulttimeout
 from faulthandler import enable as faulthandler_enable
-from telegram.ext import Updater as tgUpdater
+from telegram.ext import Updater as tgUpdater, Defaults
 from qbittorrentapi import Client as qbClient
 from aria2p import API as ariaAPI, Client as ariaClient
 from os import remove as osremove, path as ospath, environ
@@ -230,7 +230,7 @@ DUMP_CHAT = '' if len(DUMP_CHAT) == 0 else int(DUMP_CHAT)
 STATUS_LIMIT = environ.get('STATUS_LIMIT', '')
 STATUS_LIMIT = '' if len(STATUS_LIMIT) == 0 else int(STATUS_LIMIT)
 
-CMD_PERFIX = environ.get('CMD_PERFIX', '')
+CMD_SUFFIX = environ.get('CMD_SUFFIX', '')
 
 RSS_CHAT_ID = environ.get('RSS_CHAT_ID', '')
 RSS_CHAT_ID = '' if len(RSS_CHAT_ID) == 0 else int(RSS_CHAT_ID)
@@ -292,7 +292,7 @@ config_dict = {'AS_DOCUMENT': AS_DOCUMENT,
                'AUTO_DELETE_MESSAGE_DURATION': AUTO_DELETE_MESSAGE_DURATION,
                'BASE_URL': BASE_URL,
                'BOT_TOKEN': BOT_TOKEN,
-               'CMD_PERFIX': CMD_PERFIX,
+               'CMD_SUFFIX': CMD_SUFFIX,
                'DATABASE_URL': DATABASE_URL,
                'DOWNLOAD_DIR': DOWNLOAD_DIR,
                'DUMP_CHAT': DUMP_CHAT,
@@ -383,7 +383,7 @@ def aria2c_init():
         aria2.add_uris([link], {'dir': dire})
         sleep(3)
         downloads = aria2.get_downloads()
-        sleep(20)
+        sleep(15)
         aria2.remove(downloads, force=True, files=True, clean=True)
     except Exception as e:
         log_error(f"Aria2c initializing error: {e}")
@@ -397,8 +397,12 @@ aria2c_global = ['bt-max-open-files', 'download-result', 'keep-unfinished-downlo
 if not aria2_options:
     aria2_options = aria2.client.get_global_option()
     del aria2_options['dir']
-    del aria2_options['max-download-limit']
-    del aria2_options['lowest-speed-limit']
+else:
+    a2c_glo = {}
+    for op in aria2c_global:
+        if op in aria2_options:
+            a2c_glo[op] = aria2_options[op]
+    aria2.set_global_options(a2c_glo)
 
 qb_client = get_client()
 if not qbit_options:
@@ -414,7 +418,9 @@ else:
             del qb_opt[k]
     qb_client.app_set_preferences(qb_opt)
 
-updater = tgUpdater(token=BOT_TOKEN, request_kwargs={'read_timeout': 20, 'connect_timeout': 15})
+
+tgDefaults = Defaults(parse_mode='HTML', disable_web_page_preview=True, allow_sending_without_reply=True, run_async=True)
+updater = tgUpdater(token=BOT_TOKEN, defaults=tgDefaults, request_kwargs={'read_timeout': 20, 'connect_timeout': 15})
 bot = updater.bot
 dispatcher = updater.dispatcher
 job_queue = updater.job_queue

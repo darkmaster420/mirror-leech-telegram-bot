@@ -5,7 +5,7 @@ from os import path as ospath, remove as osremove, listdir, walk
 from subprocess import Popen
 from html import escape
 
-from bot import Interval, aria2, DOWNLOAD_DIR, download_dict, download_dict_lock, LOGGER, DATABASE_URL, MAX_SPLIT_SIZE, config_dict, status_reply_dict_lock
+from bot import Interval, aria2, DOWNLOAD_DIR, download_dict, download_dict_lock, LOGGER, DATABASE_URL, MAX_SPLIT_SIZE, config_dict, status_reply_dict_lock, user_data
 from bot.helper.ext_utils.fs_utils import get_base_name, get_path_size, split_file, clean_download, clean_target
 from bot.helper.ext_utils.exceptions import NotSupportedExtractionArchive
 from bot.helper.mirror_utils.status_utils.extract_status import ExtractStatus
@@ -15,7 +15,7 @@ from bot.helper.mirror_utils.status_utils.upload_status import UploadStatus
 from bot.helper.mirror_utils.status_utils.tg_upload_status import TgUploadStatus
 from bot.helper.mirror_utils.upload_utils.gdriveTools import GoogleDriveHelper
 from bot.helper.mirror_utils.upload_utils.pyrogramEngine import TgUploader
-from bot.helper.telegram_helper.message_utils import sendMessage, sendMarkup, delete_all_messages, update_all_messages
+from bot.helper.telegram_helper.message_utils import sendMessage, delete_all_messages, update_all_messages
 from bot.helper.telegram_helper.button_build import ButtonMaker
 from bot.helper.ext_utils.db_handler import DbManger
 
@@ -53,6 +53,7 @@ class MirrorLeechListener:
             DbManger().add_incomplete_task(self.message.chat.id, self.message.link, self.tag)
 
     def onDownloadComplete(self):
+        user_dict = user_data.get(self.message.from_user.id, False)
         with download_dict_lock:
             download = download_dict[self.uid]
             name = str(download.name()).replace('/', '')
@@ -70,7 +71,7 @@ class MirrorLeechListener:
                 path = f"{m_path}.zip"
             with download_dict_lock:
                 download_dict[self.uid] = ZipStatus(name, size, gid, self)
-            LEECH_SPLIT_SIZE = config_dict['LEECH_SPLIT_SIZE']
+            LEECH_SPLIT_SIZE = (user_dict and user_dict.get('split_size')) or config_dict['LEECH_SPLIT_SIZE']
             if self.pswd is not None:
                 if self.isLeech and int(size) > LEECH_SPLIT_SIZE:
                     LOGGER.info(f'Zip: orig_path: {m_path}, zip_path: {path}.0*')
@@ -162,7 +163,7 @@ class MirrorLeechListener:
             o_files = []
             if not self.isZip:
                 checked = False
-                LEECH_SPLIT_SIZE = config_dict['LEECH_SPLIT_SIZE']
+                LEECH_SPLIT_SIZE = (user_dict and user_dict.get('split_size')) or config_dict['LEECH_SPLIT_SIZE']
                 for dirpath, subdir, files in walk(up_dir, topdown=False):
                     for file_ in files:
                         f_path = ospath.join(dirpath, file_)
@@ -258,7 +259,7 @@ class MirrorLeechListener:
                     if config_dict['VIEW_LINK']:
                         share_urls = f'{INDEX_URL}/{url_path}?a=view'
                         buttons.buildbutton("🌐 View Link", share_urls)
-            sendMarkup(msg, self.bot, self.message, buttons.build_menu(2))
+            sendMessage(msg, self.bot, self.message, buttons.build_menu(2))
             if self.seed:
                 if self.isZip:
                     clean_target(f"{self.dir}/{name}")
