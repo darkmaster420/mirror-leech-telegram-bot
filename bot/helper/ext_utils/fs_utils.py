@@ -131,7 +131,7 @@ def split_file(path, size, file_, dirpath, split_size, listener, start_time=0, i
     user_dict = user_data.get(user_id, False)
     leech_split_size = (user_dict and user_dict.get('split_size')) or config_dict['LEECH_SPLIT_SIZE']
     parts = ceil(size/leech_split_size)
-    if ((user_dict and user_dict.get('equal_splits')) or config_dict['EQUAL_SPLITS']) and not inLoop:
+    if (user_dict and user_dict.get('equal_splits') or config_dict['EQUAL_SPLITS']) and not inLoop:
         split_size = ceil(size/parts) + 1000
     if get_media_streams(path)[0]:
         duration = get_media_info(path)[0]
@@ -240,14 +240,15 @@ def get_media_streams(path):
         is_audio = True
         return is_video, is_audio
 
-    if not mime_type.startswith('video'):
+    if not mime_type.startswith('video') and not mime_type.endswith('octet-stream'):
         return is_video, is_audio
 
     try:
         result = check_output(["ffprobe", "-hide_banner", "-loglevel", "error", "-print_format",
                                "json", "-show_streams", path]).decode('utf-8')
     except Exception as e:
-        LOGGER.error(f'{e}. Mostly file not found!')
+        if not mime_type.endswith('octet-stream'):
+            LOGGER.error(f'{e}. Mostly file not found!')
         return is_video, is_audio
 
     fields = eval(result).get('streams')
