@@ -1,9 +1,10 @@
 from requests import utils as rutils
 from re import search as re_search
 from time import sleep
-from os import path as ospath, remove as osremove, listdir, walk
+from os import path as ospath, remove as osremove, listdir, walk, rename, makedirs
 from subprocess import Popen
 from html import escape
+from shutil import move
 
 from bot import Interval, aria2, DOWNLOAD_DIR, download_dict, download_dict_lock, LOGGER, DATABASE_URL, MAX_SPLIT_SIZE, config_dict, status_reply_dict_lock, user_data, non_queued_up, non_queued_dl, queued_up, queued_dl, queue_dict_lock
 from bot.helper.ext_utils.fs_utils import get_base_name, get_path_size, split_file, clean_download, clean_target
@@ -23,7 +24,7 @@ from bot.helper.ext_utils.db_handler import DbManger
 
 
 class MirrorLeechListener:
-    def __init__(self, bot, message, isZip=False, extract=False, isQbit=False, isLeech=False, pswd=None, tag=None, select=False, seed=False):
+    def __init__(self, bot, message, isZip=False, extract=False, isQbit=False, isLeech=False, pswd=None, tag=None, select=False, seed=False, sameDir={}):
         self.bot = bot
         self.message = message
         self.uid = message.message_id
@@ -40,6 +41,7 @@ class MirrorLeechListener:
         self.isPrivate = message.chat.type in ['private', 'group']
         self.suproc = None
         self.queuedUp = False
+        self.sameDir = sameDir
 
     def clean(self):
         try:
@@ -57,19 +59,32 @@ class MirrorLeechListener:
 
     def onDownloadComplete(self):
         with download_dict_lock:
+            if len(self.sameDir) > 1:
+                self.sameDir.remove(self.uid)
+                folder_name = listdir(self.dir)[-1]
+                path = f"{self.dir}/{folder_name}"
+                des_path = f"{DOWNLOAD_DIR}{list(self.sameDir)[0]}/{folder_name}"
+                makedirs(des_path, exist_ok=True)
+                for subdir in listdir(path):
+                    sub_path = f"{self.dir}/{folder_name}/{subdir}"
+                    if subdir in listdir(des_path):
+                        sub_path = rename(sub_path, f"{self.dir}/{folder_name}/1-{subdir}")
+                    move(sub_path, des_path)
+                del download_dict[self.uid]
+                return
             download = download_dict[self.uid]
             name = str(download.name()).replace('/', '')
             gid = download.gid()
         LOGGER.info(f"Download completed: {name}")
         if name == "None" or self.isQbit or not ospath.exists(f"{self.dir}/{name}"):
             name = listdir(self.dir)[-1]
-        m_path = f'{self.dir}/{name}'
+        m_path = f"{self.dir}/{name}"
         size = get_path_size(m_path)
         with queue_dict_lock:
             if self.uid in non_queued_dl:
                 non_queued_dl.remove(self.uid)
         start_from_queued()
-        user_dict = user_data.get(self.message.from_user.id, False)
+        user_dict = user_data.get(self.message.from_user.id, {})
         if self.isZip:
             if self.seed and self.isLeech:
                 self.newDir = f"{self.dir}10000"
@@ -78,7 +93,7 @@ class MirrorLeechListener:
                 path = f"{m_path}.zip"
             with download_dict_lock:
                 download_dict[self.uid] = ZipStatus(name, size, gid, self)
-            LEECH_SPLIT_SIZE = user_dict and user_dict.get('split_size') or config_dict['LEECH_SPLIT_SIZE']
+            LEECH_SPLIT_SIZE = user_dict.get('split_size') or config_dict['LEECH_SPLIT_SIZE']
             if self.pswd is not None:
                 if self.isLeech and int(size) > LEECH_SPLIT_SIZE:
                     LOGGER.info(f'Zip: orig_path: {m_path}, zip_path: {path}.0*')
@@ -167,7 +182,7 @@ class MirrorLeechListener:
             o_files = []
             if not self.isZip:
                 checked = False
-                LEECH_SPLIT_SIZE = user_dict and user_dict.get('split_size') or config_dict['LEECH_SPLIT_SIZE']
+                LEECH_SPLIT_SIZE = user_dict.get('split_size') or config_dict['LEECH_SPLIT_SIZE']
                 for dirpath, subdir, files in walk(up_dir, topdown=False):
                     for file_ in files:
                         f_path = ospath.join(dirpath, file_)
@@ -324,6 +339,8 @@ class MirrorLeechListener:
             if self.uid in download_dict.keys():
                 del download_dict[self.uid]
             count = len(download_dict)
+            if self.uid in self.sameDir:
+                self.sameDir.remove(self.uid)
         msg = f"{self.tag} your download has been stopped due to: {escape(error)}"
         sendMessage(msg, self.bot, self.message)
         if count == 0:
@@ -355,6 +372,8 @@ class MirrorLeechListener:
             if self.uid in download_dict.keys():
                 del download_dict[self.uid]
             count = len(download_dict)
+            if self.uid in self.sameDir:
+                self.sameDir.remove(self.uid)
         sendMessage(f"{self.tag} {escape(error)}", self.bot, self.message)
         if count == 0:
             self.clean()
